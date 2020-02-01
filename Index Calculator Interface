@@ -1,0 +1,174 @@
+import os
+import time
+import arcpy
+from arcpy.sa import *
+import arcgisscripting
+from Tkinter import *
+from ttk import Button
+from tkFileDialog import*
+
+
+
+startTime = time.time()
+arcpy.env.overwriteOutput = 1
+arcpy.CheckOutExtension("spatial")
+
+
+# Set input stacked image and output directory if desired
+inPath = r""
+outPath = r""
+
+sensors = ["Landsat 1-5 MSS", "Landsat 4-5 TM", "Landsat 7 ETM+", "Landsat 8 OLI"]
+indices = ["NDVI","SAVI","EVI","NDWI","NDBI","NDSI"]
+indicesSensor = {'NDVI':["Landsat 1-5 MSS","Landsat 4-5 TM","Landsat 7 ETM+","Landsat 8 OLI"],'SAVI':["Landsat 1-5 MSS","Landsat 4-5 TM","Landsat 7 ETM+","Landsat 8 OLI"],'EVI':["Landsat 4-5 TM","Landsat 7 ETM+","Landsat 8 OLI"],'NDWI':["Landsat 1-5 MSS","Landsat 4-5 TM","Landsat 7 ETM+","Landsat 8 OLI"],'NDBI':["Landsat 4-5 TM","Landsat 7 ETM+","Landsat 8 OLI"],'NDSI':["Landsat 1-5 MSS","Landsat 4-5 TM","Landsat 7 ETM+","Landsat 8 OLI"]}
+
+root = Tk()
+root.title("indices calculator")
+
+Label(root, text="Sensor", font="Times 12 bold").grid(row=1,column=1, sticky=W)
+Label(root, text="Indices", font="Times 12 bold").grid(row=1,column=10, sticky=W)
+
+#set checkbutton
+checkbutton = list(range(len(indices)))
+cbVar = list(range(len(indices)))
+sensrowpos=2
+
+for i, indice in enumerate(indices):   #enumerate is builtin function for   each element in cursor , a tuple is produced with (counter, element) 
+    cbVar[i] = IntVar()
+    checkbutton[i] = Checkbutton(root, text=indice, variable=cbVar[i])
+    checkbutton[i].grid(row=sensrowpos, column=10, pady=4, padx=4, sticky=W)
+    sensrowpos += 1
+
+    
+
+#set radiobutton
+sensrowpos=2
+radiobutton= list(range(len(sensors)))
+vSensor = StringVar()
+for i, sensor in enumerate(sensors):
+    radiobutton[i] = Radiobutton(root, text=sensor, variable=vSensor, value=sensor)
+    radiobutton[i].grid(row=sensrowpos, column=1, pady=4, padx=7, sticky=W)
+    vSensor.set("Landsat 8 OLI")
+    sensrowpos += 1
+    
+
+#input directory
+
+rowpos=10
+Label(root, text="Input Stacked Image").grid(row=rowpos,column=1, sticky=W)
+rowpos += 1
+indirVar = StringVar()
+indirEntry = Entry(root, textvariable = indirVar, width=50)
+
+indirEntry.insert(INSERT, inPath)
+indirEntry.grid(row=rowpos,column=0, sticky=W, columnspan=8, padx=5)
+
+
+def indirbrowser():
+    indir = askopenfilename(parent=root, title="Select Stacked Input Image")
+    if len(indir) > 0:
+        indirEntry.delete(0, END)
+        indirEntry.insert(INSERT, indir)
+
+indirButton = Button(root, text = 'Browse', command=indirbrowser).grid(row=rowpos, column=55, pady=2, padx=2)
+
+
+#output directory
+rowpos += 1
+Label(root, text="Output Directory").grid(row=rowpos,column=1, sticky=W)
+rowpos += 1
+outdirVar = StringVar()
+outdirEntry = Entry(root, textvariable = outdirVar, width=50)
+
+outdirEntry.insert(INSERT, outPath)
+outdirEntry.grid(row=rowpos, column=1, sticky=W, columnspan=8, padx=5)
+
+
+def outdirbrowser():
+    outdir = askdirectory(parent=root, title="Select Root Output Directory")
+    if len(outdir) > 0:
+        outdirEntry.insert(INSERT, outdir)
+
+outdirButton = Button(root, text = 'Browse', command=outdirbrowser).grid(row=rowpos, column=55, pady=2, padx=2)
+rowpos += 1
+
+# Run Button
+def callback():
+    root.destroy()
+Button(root, text = 'Run', command=callback).grid(row=rowpos,column=3, pady=4, padx=4)
+
+
+# Quit Button
+def quitbutton():
+        print "Processing cancelled"
+        root.destroy()
+        raise SystemExit(0)
+Button(root, text='Quit', command=quitbutton).grid(row=rowpos, column=2, pady=4,padx=4) 
+
+
+root.mainloop()
+#end GUI................................................................
+
+# Set variables selected from GUI
+Sensor = vSensor.get()
+inPath = indirVar.get()
+outPath = outdirVar.get()
+arcpy.env.workspace = inPath
+
+if not (outPath and os.path.exists(outPath)): os.makedirs(outPath)  # Create output directory if it doesn't exist
+pathRoot, inRaster = os.path.split(inPath)
+print "Processing", inRaster
+
+#bands based on sensor
+d = arcpy.Describe(inPath)
+
+if Sensor == "Landsat 1-5 MSS":
+    Green = Raster(d.children[0].name)
+    Red = Raster(d.children[1].name)
+    NIR1 = Raster(d.children[2].name)
+    NIR2 = Raster(d.children[3].name)
+
+if Sensor == "Landsat 4-5 TM" or Sensor == "Landsat 7 ETM+":
+    Blue = Raster(d.children[0].name)
+    Green = Raster(d.children[1].name)
+    Red = Raster(d.children[2].name)
+    NIR1 = Raster(d.children[3].name)
+    SWIR1 = Raster(d.children[4].name)
+    SWIR2 = Raster(d.children[5].name)
+
+if Sensor == "Landsat 8 OLI":
+    Coastal = Raster(d.children[0].name)
+    Blue = Raster(d.children[1].name)
+    Green = Raster(d.children[2].name)
+    Red = Raster(d.children[3].name)
+    NIR1 = Raster(d.children[4].name)
+    SWIR1 = Raster(d.children[5].name)
+    SWIR2 = Raster(d.children[6].name)
+
+
+
+# Calculate and save indices
+
+
+
+for key, value in indicesSensor.iteritems():
+    NDVI = (NIR1 - Red)*100/(NIR1 + Red)
+    EVI = 2.5*((NIR1 - Red)/(NIR1 + 6 * Red - 7.5 * Blue + 1))
+    NDWI = (Green - NIR1)*100/(Green + NIR1)
+    SAVI = ((NIR1 - Red)/(NIR1 + Red + 0.5)) * (1 + 0.5)
+    NDSI =(Green - NIR1)*100/(Green + NIR1)
+    NDBI = (SWIR1 - NIR1)*100/(SWIR1 + NIR1)
+    if Sensor in value:
+        if cbVar[indices.index(key)].get():
+            formula=key
+            print key
+            eval(formula).save(outPath + "/" + inRaster[:-4] + "_" + key + ".tif")  # Save index raster    
+
+
+
+
+endTime = time.time() - startTime
+print "Completed in", ("%.2f" % endTime), 'seconds.'        
+
+
+    
